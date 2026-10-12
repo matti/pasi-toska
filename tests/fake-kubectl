@@ -1,0 +1,4 @@
+#!/bin/sh
+# Stand-in for kubectl in tests (HYDRA_KUBECTL): records the applied manifest.
+cat > "${HYDRA_KUBECTL_OUT:?}"
+echo "fake-kubectl: recorded '$*'"

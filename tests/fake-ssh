@@ -1,0 +1,5 @@
+#!/bin/sh
+# Stand-in for ssh in tests (HYDRA_SSH): ignores the host and runs the
+# command on this machine, so the "exit host" is the local docker.
+shift
+exec sh -c "$*"

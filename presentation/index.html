@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PASI TOSKA browser: tekninen katsaus</title>
+<style>
+  :root {
+    --bg: #07090d; --surface: #0e1118; --surface-2: #131722; --surface-3: #1a1f2c;
+    --line: rgba(255,255,255,.08); --text: #e8ebf2; --muted: #8b93a7; --faint: #5d6477;
+    --green: #43e5a0; --red: #ff5d6c; --amber: #ffb547; --blue: #6f8bff;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #000; color: var(--text); font-family: var(--sans); overflow: hidden; }
+  /* 1280x720 slides, scaled to the window. */
+  #deck { position: absolute; left: 50%; top: 50%; width: 1280px; height: 720px; transform-origin: 0 0; }
+  .slide {
+    position: absolute; inset: 0; display: none; padding: 56px 72px 48px; overflow: hidden;
+    background: radial-gradient(60% 70% at 15% 0%, rgba(67,229,160,.07), transparent 70%),
+                radial-gradient(50% 60% at 95% 5%, rgba(111,139,255,.09), transparent 70%), var(--bg);
+  }
+  .slide.active { display: flex; flex-direction: column; }
+  h1 { margin: 0; font-size: 64px; letter-spacing: .04em; font-weight: 800; line-height: 1.05; }
+  h2 { margin: 0 0 26px; font-size: 38px; letter-spacing: -.01em; font-weight: 750; }
+  h2 small { display: block; font-size: 17px; font-weight: 500; color: var(--muted); letter-spacing: .02em; margin-top: 6px; }
+  ul { margin: 0; padding-left: 1.1em; }
+  li { font-size: 22px; line-height: 1.45; margin: 0 0 9px; }
+  li li { font-size: 20px; color: #c9d0de; margin: 4px 0; }
+  li::marker { color: var(--blue); }
+  code, .mono { font-family: var(--mono); font-size: .9em; color: #b9c6ff; }
+  b { color: #fff; }
+  .g { color: var(--green); } .r { color: var(--red); } .a { color: var(--amber); } .m { color: var(--muted); }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 36px; flex: 1; min-height: 0; align-items: start; }
+  .cols.wide-r { grid-template-columns: 0.9fr 1.1fr; }
+  .cols.wide-l { grid-template-columns: 1.15fr 0.85fr; }
+  .shot { width: 100%; border-radius: 12px; border: 1px solid var(--line); box-shadow: 0 30px 60px -30px rgba(0,0,0,.9); display: block; }
+  .fit { min-height: 0; display: flex; align-items: flex-start; justify-content: center; }
+  .fit img { max-height: 100%; max-width: 100%; object-fit: contain; }
+  .cap { font-size: 15px; color: var(--muted); margin-top: 10px; }
+  .big { white-space: nowrap; font-size: 52px; font-weight: 800; font-family: var(--mono); letter-spacing: -.02em; color: var(--green); line-height: 1; }
+  .stat { background: var(--surface-2); border: 1px solid var(--line); border-radius: 14px; padding: 18px 22px; }
+  .stats .big { font-size: 42px; }
+  .stat .lbl { color: var(--muted); font-size: 16px; margin-top: 8px; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 18px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 15px; text-transform: uppercase; letter-spacing: .06em; }
+  pre { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px;
+        font-family: var(--mono); font-size: 15.5px; line-height: 1.5; color: #cfd6e6; white-space: pre-wrap; }
+  .foot { position: absolute; left: 72px; right: 72px; bottom: 18px; display: flex; justify-content: space-between;
+          font-size: 13px; color: var(--faint); font-family: var(--mono); }
+  .brand { display: flex; align-items: center; gap: 22px; }
+  .logo { width: 88px; height: 88px; padding: 12px; border-radius: 22px; background: var(--surface-2); border: 1px solid rgba(255,255,255,.12); }
+  .title-sub { font-size: 30px; color: #c9d0de; margin-top: 30px; max-width: 980px; line-height: 1.35; }
+  .tag { display: inline-block; margin-top: 46px; font-family: var(--mono); font-size: 18px; color: var(--muted); }
+  #counter { position: fixed; right: 14px; bottom: 10px; font: 12px var(--mono); color: #444; }
+  @media print {
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    html, body { overflow: visible; height: auto; background: var(--bg); }
+    #deck { position: static; transform: none !important; width: 1280px; height: auto; }
+    .slide { display: flex !important; flex-direction: column; position: relative; width: 1280px; height: 720px; break-after: page; }
+    #counter { display: none; }
+  }
+  @page { size: 1280px 720px; margin: 0; }
+</style>
+</head>
+<body>
+<div id="deck">
+
+<!-- 1 -->
+<section class="slide">
+  <div style="flex:1; display:flex; flex-direction:column; justify-content:center;">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 32 32"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#43e5a0"/><stop offset="1" stop-color="#6f8bff"/></linearGradient></defs>
+        <path d="M5 22c0-6.1 4.9-11 11-11s11 4.9 11 11" fill="none" stroke="url(#lg)" stroke-width="3.2" stroke-linecap="round"/>
+        <path d="M10.5 22c0-3 2.5-5.5 5.5-5.5s5.5 2.5 5.5 5.5" fill="none" stroke="url(#lg)" stroke-width="3.2" stroke-linecap="round" opacity=".55"/>
+        <circle cx="16" cy="22" r="2.4" fill="#43e5a0"/></svg>
+      <h1>PASI TOSKA<br><span style="font-size:34px; font-weight:500; color:var(--muted); letter-spacing:.02em">browser</span></h1>
+    </div>
+    <div class="title-sub">Oikea selain AI-agentille. Jokaisen selaimen liikenne lähtee valitusta maasta, ihminen näkee kaiken livenä.</div>
+    <div class="tag">Tekninen katsaus TOSKA.dev-tiimille · 12.10.2026</div>
+  </div>
+</section>
+
+<!-- 2 -->
+<section class="slide">
+  <h2>Ongelma ja tavoite</h2>
+  <div class="cols">
+    <ul>
+      <li><b>A, optimi:</b> agentti tutkii itse valitsemiaan kohteita, käytännössä hakukoneesta alkaen: hae, avaa tulokset, lue, vastaa lähteineen.</li>
+      <li><b>B, kapeampi:</b> agentti lukee annetun sivun, esim. <i>"hae lokakuun tarjoukset kaalimato.com"</i>.</li>
+      <li>Agentti ajaa muualla (esim. jonkun muun kubessa): selain tarjotaan verkon yli, ei Macin <code>docker exec</code>illä.</li>
+    </ul>
+    <ul>
+      <li>Vaatimukset:
+        <ul>
+          <li>oikea headful Chromium, ei headless-skriptiä</li>
+          <li>jokaisella selaimella oma julkinen IP valitusta exitistä</li>
+          <li>ei vuotoja: ei suoraa ulosmenoa, ei DNS:ää, ei IPv6:ta tunnelin ohi</li>
+          <li>ihminen voi katsoa ja ottaa ohjat</li>
+          <li>minimaalinen: kontteja ja env-muuttujia, kube vain yksi ajotapa</li>
+        </ul>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<!-- 3 -->
+<section class="slide">
+  <h2>Live: kaksi selainta, kaksi maata, sama tehtävä<small>Panel n100-1:llä, tehtävä B ajossa rinnakkain Cape Townin ja Kulloon kautta</small></h2>
+  <div class="fit" style="flex:1"><img class="shot" src="img/pres-agent-mid.jpg" alt="Panel: agentti työssä kahdessa selaimessa"></div>
+</section>
+
+<!-- 4 -->
+<section class="slide">
+  <h2>Arkkitehtuuri</h2>
+  <svg viewBox="0 0 1136 600" style="width:100%; flex:1; min-height:0" font-family="Inter, system-ui, sans-serif">
+    <defs>
+      <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#8b93a7"/></marker>
+      <marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#43e5a0"/></marker>
+    </defs>
+    <style>
+      .bx { fill: #131722; stroke: rgba(255,255,255,.14); stroke-width: 1.5; }
+      .t { fill: #e8ebf2; font-size: 19px; font-weight: 700; }
+      .s { fill: #8b93a7; font-size: 14.5px; }
+      .mono { font-family: ui-monospace, Menlo, monospace; fill: #b9c6ff; font-size: 13.5px; }
+      .ln { stroke: #8b93a7; stroke-width: 1.8; fill: none; }
+      .wg { stroke: #43e5a0; stroke-width: 2.4; fill: none; stroke-dasharray: 8 6; }
+    </style>
+    <rect class="bx" rx="14" x="0" y="20" width="230" height="86"/><text class="t" x="20" y="56">Ihminen</text><text class="s" x="20" y="82">selain, puhelin</text>
+    <rect class="bx" rx="14" x="0" y="140" width="230" height="86"/><text class="t" x="20" y="176">Agentti</text><text class="s" x="20" y="202">Claude Code / muu MCP</text>
+    <rect class="bx" rx="14" x="300" y="20" width="270" height="206"/><text class="t" x="320" y="56">hydra-panel</text>
+    <text class="s" x="320" y="82">Rust, axum, kube-rs</text>
+    <text class="mono" x="320" y="112">/  UI + SSE</text><text class="mono" x="320" y="136">/b/&lt;id&gt;/vnc  noVNC</text>
+    <text class="mono" x="320" y="160">/b/&lt;id&gt;/mcp  MCP</text><text class="mono" x="320" y="184">/api  käynnistä, vaihda</text>
+    <text class="mono" x="320" y="208">agentti (Claude)</text>
+    <path class="ln" d="M230 63H298" marker-end="url(#ar)"/><path class="ln" d="M230 183H298" marker-end="url(#ar)"/>
+    <text class="s" x="300" y="262">k0s, Intel N100 (n100-1)</text>
+    <rect class="bx" rx="14" x="640" y="20" width="300" height="250"/><text class="t" x="660" y="56">Pod hydra-b-&lt;id&gt;</text>
+    <text class="s" x="660" y="82">image hydra-browser</text>
+    <text class="mono" x="660" y="112">Chromium + Xvfb</text><text class="mono" x="660" y="136">:6080 noVNC</text>
+    <text class="mono" x="660" y="160">:8931 Playwright MCP</text><text class="mono" x="660" y="184">:8080 status, /ip, uusinta</text>
+    <text class="mono" x="660" y="208">:8081 exitin vaihto (root)</text>
+    <text class="mono" x="660" y="240" style="fill:#43e5a0">wg0 + killswitch</text>
+    <rect class="bx" rx="14" x="962" y="20" width="174" height="96" style="opacity:.6"/><text class="s" x="980" y="58">pod per selain,</text><text class="s" x="980" y="82">kukin omaan exitiin</text>
+    <path class="ln" d="M570 120H638" marker-end="url(#ar)"/>
+    <rect class="bx" rx="14" x="300" y="370" width="400" height="140"/><text class="t" x="320" y="406">Cape Town, South Africa</text>
+    <text class="s" x="320" y="432">hydra-exit, AWS af-south-1, t4g.micro</text><text class="mono" x="320" y="460">julkinen UDP 51820</text>
+    <text class="mono" x="320" y="486" style="fill:#43e5a0">15.240.66.186</text>
+    <rect class="bx" rx="14" x="760" y="370" width="376" height="140"/><text class="t" x="780" y="406">Kulloo, Finland</text>
+    <text class="s" x="780" y="432">hydra-exit, koti-/yritysliittymä NATin takana</text><text class="mono" x="780" y="460">Tailscale-endpoint, MTU 1200</text>
+    <text class="mono" x="780" y="486" style="fill:#43e5a0">193.211.54.84</text>
+    <path class="wg" d="M880 272V368" marker-end="url(#ag)"/><path class="wg" d="M700 272C700 320 540 330 500 368" marker-end="url(#ag)"/>
+    <text class="s" x="892" y="326" style="fill:#43e5a0">WireGuard</text>
+    <rect class="bx" rx="12" x="300" y="548" width="836" height="48"/><text class="t" x="320" y="579" style="font-size:17px">Internet</text><text class="s" x="410" y="579">näkee vain exitin IP:n</text>
+    <path class="ln" d="M500 510V546" marker-end="url(#ar)"/><path class="ln" d="M948 510V546" marker-end="url(#ar)"/>
+  </svg>
+</section>
+
+<!-- 5 -->
+<section class="slide">
+  <h2>hydra-browser: yksi image<small>docker run sellaisenaan, podina sellaisenaan</small></h2>
+  <div class="cols wide-l">
+    <ul>
+      <li>Debian trixie + Chromium 154, <b>headful</b> Xvfb:ssä, <code>AutomationControlled</code> pois, oma profiili.</li>
+      <li>Ohjaus: <b>Playwright MCP</b> Streamable HTTP:nä <code>:8931/mcp</code>, kiinni Chromiumissa CDP:llä. <b>CDP vain 127.0.0.1:ssä</b>.</li>
+      <li>Ihminen: noVNC <code>:6080</code> (Node-silta x11vnc:hen, ei Pythonia).</li>
+      <li>Status <code>:8080</code>: ready, exit, egress (ipinfo tunnelin läpi), iso IP-sivu.</li>
+      <li>Selain ajaa käyttäjänä <code>hydra</code> ilman capabilityjä: murrettu sivu ei voi koskea palomuuriin.</li>
+      <li>Evästebannerit pois: "I still don't care about cookies" 1.1.9, SHA-256-tarkistettu.</li>
+      <li>Kieli ja aikavyöhyke exitin mukaan (<code>LANG</code>, <code>TZ</code>).</li>
+    </ul>
+    <div>
+      <img class="shot" src="img/kulloo-panel.jpg" alt="Panel ja IP-sivut">
+      <div class="cap">IP-sivu kortin live-näkymässä: IP, paikka, WebRTC (STUN), DNS-resolveri, sormenjälkirivit.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 6 -->
+<section class="slide">
+  <h2>Ulosmeno ja killswitch</h2>
+  <div class="cols">
+    <ul>
+      <li>Kaikki podin kontit jakavat netnsin: Chromium, WebRTC, DNS, kaikki samojen sääntöjen alla.</li>
+      <li><b>Killswitch ensin</b>, tunneli vasta sitten: iptables INPUT/OUTPUT/FORWARD <code>DROP</code>.</li>
+      <li>Ulos vain: <code>wg0</code>, salattu UDP exitille, vastaukset klusterin asiakkaille.</li>
+      <li>DNS vain tunnelin takaisiin resolvereihin. IPv6 kokonaan kiinni.</li>
+      <li>Reititys kuten wg-quick: fwmark + oma taulu, klusterin verkot (RFC1918) pysyvät eth0:lla vain vastauksille.</li>
+      <li>Exit voi olla NATin takana: endpointiksi Tailscale-IP.</li>
+    </ul>
+    <div>
+      <table>
+        <tr><th>Mitattu</th><th>Tulos</th></tr>
+        <tr><td><code>curl --interface eth0</code></td><td class="g">estetty</td></tr>
+        <tr><td>exit alas: DNS, IP-osoite, MCP-navigointi</td><td class="g">kaikki epäonnistuvat, ei paluuta suoraan</td></tr>
+        <tr><td>oikea exit alas ja ylös (purkki)</td><td class="g">ulosmeno takaisin 4 s, pod ei käynnisty uudelleen</td></tr>
+        <tr><td>IPv6 podissa</td><td class="g">pois</td></tr>
+        <tr><td>selainkäyttäjä <code>iptables -F</code></td><td class="g">ei oikeutta</td></tr>
+      </table>
+      <div class="cap">Lähteet: <code>tests/e2e.sh</code> ja live-testi n100-1 + purkki.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 7 -->
+<section class="slide">
+  <h2>Exitit: yksi kontti millä tahansa koneella</h2>
+  <div class="cols wide-l">
+    <ul>
+      <li><code>hydra-exit</code>: WireGuard-palvelin + NAT konttina, peer-pooli (oletus 8) volyymissä, MTU 1200 (Tailscale-polku 1280).</li>
+      <li>Ei pääsyä exitin lähiverkkoon: yksityiset verkot pudotetaan.</li>
+      <li><code>hydra exit add</code> (Rust CLI): rakentaa imagen etäkoneen arkkitehtuurille, kopioi vain jos image-id muuttui, käynnistää, kirjoittaa peerit kube-Secreteiksi (server-side apply).</li>
+      <li>Näyttönimi annotaationa: <code>--label "Kulloo, Finland"</code>, korvaa UI:ssa ipinfo.io:n kaupunkiarvauksen.</li>
+      <li><b>Kulloo:</b> kone koti-/yritysliittymässä (Telia), NATin takana, Tailscalen kautta.</li>
+      <li><b>Cape Town:</b> AWS af-south-1, t4g.micro (arm64), noin 12,4 $/kk hinnaston mukaan + liikenne.</li>
+    </ul>
+    <pre>hydra exit add purkki root@purkki \
+  --endpoint 100.111.221.2 \
+  --label "Kulloo, Finland" \
+  --country FI --tz Europe/Helsinki \
+  --lang fi_FI.UTF-8 \
+  --kubeconfig .secrets/kubeconfig
+
+<span class="m"># -> 8 Secretiä hydra-exit-purkki-0..7
+#    annotaatiot: label, ip, maa, tz, kieli</span></pre>
+  </div>
+</section>
+
+<!-- 8 -->
+<section class="slide">
+  <h2>Exitin vaihto lennosta<small>ei selaimen uudelleenkäynnistystä, killswitch ei aukea hetkeksikään</small></h2>
+  <div class="stats" style="grid-template-columns: repeat(4, 1fr); margin: 0 0 26px">
+    <div class="stat"><div class="big">0,15 s</div><div class="lbl">vaihto, panelin API</div></div>
+    <div class="stat"><div class="big">1,4 s</div><div class="lbl">uusi IP statuksessa</div></div>
+    <div class="stat"><div class="big">595</div><div class="lbl">WireGuard-pakettia uudelle exitille vaihdon aikana</div></div>
+    <div class="stat"><div class="big" style="color:var(--green)">0</div><div class="lbl">muuta pakettia eth0:lta (tcpdump, e2e)</div></div>
+  </div>
+  <div class="cols wide-r">
+    <ul>
+      <li>Panel varaa vapaan peerin (pod-labelit) ja lähettää wg0.conf:n podin root-porttiin 8081.</li>
+      <li>Uusi endpoint sallitaan ensin, peer vaihdetaan yhdellä <code>wg set</code>, vanha poistetaan lopuksi.</li>
+      <li>Portti 8081 hylkää podin sisäiset asiakkaat (403).</li>
+    </ul>
+    <img class="shot" style="max-height:300px; width:auto; max-width:100%; justify-self:end" src="img/pres-exit-menu.jpg" alt="Exitin vaihtovalikko">
+  </div>
+</section>
+
+<!-- 9 -->
+<section class="slide">
+  <h2>Agentti: Claude Opus selaimen ohjaimena</h2>
+  <div class="cols">
+    <ul>
+      <li>Panelin oma silmukka: Messages API, <code>claude-opus-5-5</code>, adaptive thinking, MCP-työkalut suoraan podista.</li>
+      <li>Käyttäjän <b>Claude-tilaus</b>, ei API-avainta: <code>hydra login</code> kopioi tokenin Macilta Secretiin, launchd päivittää 10 min välein. Token ei tulostu.</li>
+      <li>"Aja kaikissa": sama tehtävä rinnakkain kaikissa selaimissa, askelloki ja vastaus lähteineen kortissa.</li>
+      <li>Ohje mallille: DuckDuckGo html tai Bing (ei Googlea), snapshotit kuvakaappausten sijaan, noin 25 askelta, vastaus suomeksi.</li>
+      <li><code>ask_human(reason)</code>: CAPTCHA, kirjautuminen tai maksu pysäyttää ajon, näkymä muuttuu ohjattavaksi, "Jatka" jatkaa.</li>
+      <li>Tilauksen raja (429) pysäyttää ajon, ei uudelleenyrityksiä.</li>
+    </ul>
+    <div>
+      <img class="shot" src="img/feat6-ask-human.jpg" alt="Agentti pyytää ihmistä ratkaisemaan reCAPTCHAn">
+      <div class="cap">reCAPTCHA-demo: agentti pysähtyi itse ja pyysi apua.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 -->
+<section class="slide">
+  <h2>Uusinta: viimeiset 10 sekuntia<small>mitattu n100-1:llä, kaksi selainta käynnissä</small></h2>
+  <div class="stats" style="grid-template-columns: repeat(4, 1fr); margin: 0 0 26px">
+    <div class="stat"><div class="big">~9 %</div><div class="lbl">yhdestä N100-ytimestä per selain</div></div>
+    <div class="stat"><div class="big">74 Mt</div><div class="lbl">muistia per selain</div></div>
+    <div class="stat"><div class="big">0,2 s</div><div class="lbl">videon kokoaminen</div></div>
+    <div class="stat"><div class="big">~400 kt</div><div class="lbl">10 s video</div></div>
+  </div>
+  <div class="cols wide-r">
+    <ul>
+      <li>ffmpeg x11grab koko ajan: 10 fps, 1024 px, libx264 ultrafast, 2 s segmentit, 7 tiedoston rengas <code>/dev/shm</code>:ssä.</li>
+      <li><code>GET /replay.mp4</code> liittää uusimmat segmentit ilman uudelleenkoodausta.</li>
+      <li>Panel näyttää videon kortin päällä.</li>
+    </ul>
+    <img class="shot" style="max-height:300px; width:auto; max-width:100%; justify-self:end" src="img/pres-replay.jpg" alt="Uusinta kortin päällä">
+  </div>
+</section>
+
+<!-- 11 -->
+<section class="slide">
+  <h2>Sormenjälki: rehellinen tilanne<small>mitattu 12.10.2026, ei vielä korjattu</small></h2>
+  <div class="cols wide-l">
+    <div>
+      <table>
+        <tr><th>Testi</th><th>Tulos</th></tr>
+        <tr><td>deviceandbrowserinfo.com</td><td class="r">"You are a bot": CDP-automaatio näkyy sivulle ja web workeriin, ajastimen tarkkuus epäjohdonmukainen</td></tr>
+        <tr><td>CreepJS</td><td><span class="a">44 % "like headless"</span>, 0 % headless, 0 % stealth</td></tr>
+        <tr><td>WebGL / WebGPU</td><td class="r">puuttuu / ei tuettu</td></tr>
+        <tr><td>BrowserScan</td><td class="g">"Normal"</td></tr>
+        <tr><td>webdriver, aikavyöhyke, kieli</td><td class="g">kunnossa, vastaavat exitiä</td></tr>
+      </table>
+      <ul style="margin-top:20px">
+        <li>Korjausehdotukset: CDP:n <code>Runtime.enable</code>-jälki pois (paikattu Playwright tai ohjaus laajennuksen kautta), WebGL päälle (SwiftShader/ANGLE), TZ/LANG CDP:n emulaatiolla exitin vaihdossa.</li>
+      </ul>
+    </div>
+    <div class="fit"><img class="shot" src="img/feat8-fingerprint.jpg" alt="Botintunnistustesti molemmissa selaimissa"></div>
+  </div>
+</section>
+
+<!-- 12 -->
+<section class="slide">
+  <h2>Testit ja resurssit</h2>
+  <div class="cols">
+    <ul>
+      <li><code>cli</code>: 15 testiä, <code>panel</code>: 29 testiä (+1 live-probe), alle sekunnissa.</li>
+      <li><code>tests/e2e.sh</code>: pelkkä docker, noin 45 s, siivoaa jälkensä:
+        <ul>
+          <li><code>exit add</code> kahdesti (idempotentti), feikki-ssh ja -kubectl</li>
+          <li>tunneli, killswitch, exit alas, exitin vaihto + tcpdump</li>
+          <li>MCP: haku DuckDuckGosta + tuloksen avaus, annetun sivun luku</li>
+        </ul>
+      </li>
+      <li>Ei kiinteitä odotuksia: pollaus lyhyellä välillä ja aikarajalla.</li>
+      <li>Mobiili tarkistettu 390 ja 320 px leveydellä.</li>
+    </ul>
+    <div>
+      <div class="stats" style="grid-template-columns: 1fr 1fr">
+        <div class="stat"><div class="big">506 Mi</div><div class="lbl">selainpodin muisti (kubectl top, valmis selain)</div></div>
+        <div class="stat"><div class="big">98m</div><div class="lbl">selainpodin CPU samalla hetkellä</div></div>
+        <div class="stat"><div class="big">7 Mi</div><div class="lbl">panelin muisti, 1m CPU</div></div>
+        <div class="stat"><div class="big">519 MB</div><div class="lbl">hydra-browser-image (amd64)</div></div>
+      </div>
+      <div class="cap">Kone: Intel N100, 4 ydintä, 15,7 Gt, samalla Proxmox-hostilla OPNsense-VM. Selaimia enintään 2.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 13 -->
+<section class="slide">
+  <h2>Näin ajat sen itse</h2>
+  <div class="cols">
+    <div>
+      <div class="m" style="font-size:17px; margin-bottom:8px">docker, suora ulosmeno</div>
+      <pre>docker run -d --shm-size 1g \
+  -p 8931:8931 -p 6080:6080 -p 8080:8080 \
+  -e TZ=Europe/Helsinki -e LANG=fi_FI.UTF-8 \
+  hydra-browser
+
+claude mcp add --transport http browser \
+  http://localhost:8931/mcp</pre>
+      <div class="m" style="font-size:17px; margin:16px 0 8px">exitin kautta: peerin wg0.conf + NET_ADMIN</div>
+      <pre>docker run -d --shm-size 1g --cap-add NET_ADMIN \
+  -v ./peer-7.conf:/etc/hydra/wg/wg0.conf:ro ...</pre>
+    </div>
+    <ul>
+      <li>Kubessa: yksi pod per selain. Exit-Secret mountattuna <code>/etc/hydra/wg</code>, <code>NET_ADMIN</code> vain tunnelipodeille, <code>/dev/shm</code> emptyDir Memory.</li>
+      <li>Panel valinnainen: <code>panel/deploy/panel.yaml</code>, NodePort 30080, rooli pods + secrets.</li>
+      <li>Agentin saa myös pelkällä MCP-URL:llä: <code>http://&lt;panel&gt;/b/&lt;id&gt;/mcp</code>.</li>
+      <li>Rajapinnat yhdessä paikassa: <code>docs/contract.md</code>.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- 14 -->
+<section class="slide">
+  <h2>Seuraavat askeleet</h2>
+  <div class="cols">
+    <ul>
+      <li><b>Sormenjälki:</b> CDP-jälki pois, WebGL päälle, TZ/LANG mukaan exitin vaihtoon.</li>
+      <li><b>Lisää exitejä</b>: sama <code>hydra exit add</code> mihin tahansa docker-koneeseen, myös kotiin NATin taakse.</li>
+      <li><b>Agentti</b>: pidemmät tutkimustehtävät, tulosten tallennus, ajastetut ajot.</li>
+      <li><b>Kapasiteetti</b>: tehokkaampi solmu kuin N100, enemmän rinnakkaisia selaimia.</li>
+    </ul>
+    <div style="display:flex; gap:24px; align-items:flex-start">
+      <img class="shot" src="img/pasi-toska-390x844.jpg" style="height:440px; width:auto" alt="Mobiilinäkymä">
+      <div class="cap" style="margin-top:0">Toimii myös puhelimella.<br><br>Koodi: <code>images/</code>, <code>cli/</code>, <code>panel/</code>, <code>tests/</code>, dokumentaatio <code>docs/</code>.</div>
+    </div>
+  </div>
+</section>
+
+</div>
+<div id="counter"></div>
+<script>
+  const slides = [...document.querySelectorAll(".slide")];
+  slides.forEach((s, i) => {
+    const f = document.createElement("div");
+    f.className = "foot";
+    f.innerHTML = `<span>PASI TOSKA browser</span><span>${i + 1} / ${slides.length}</span>`;
+    if (i) s.append(f);
+  });
+  let cur = Math.min(Math.max(parseInt(location.hash.slice(1), 10) || 1, 1), slides.length) - 1;
+  function show(i) {
+    cur = Math.min(Math.max(i, 0), slides.length - 1);
+    slides.forEach((s, j) => s.classList.toggle("active", j === cur));
+    history.replaceState(null, "", `#${cur + 1}`);
+  }
+  function fit() {
+    const k = Math.min(innerWidth / 1280, innerHeight / 720);
+    document.getElementById("deck").style.transform = `scale(${k}) translate(-50%, -50%)`;
+  }
+  addEventListener("keydown", (e) => {
+    if (["ArrowRight", "ArrowDown", "PageDown", " ", "Enter"].includes(e.key)) show(cur + 1);
+    else if (["ArrowLeft", "ArrowUp", "PageUp", "Backspace"].includes(e.key)) show(cur - 1);
+    else if (e.key === "Home") show(0);
+    else if (e.key === "End") show(slides.length - 1);
+    else return;
+    e.preventDefault();
+  });
+  addEventListener("click", (e) => show(cur + (e.clientX > innerWidth / 3 ? 1 : -1)));
+  addEventListener("resize", fit);
+  addEventListener("hashchange", () => show((parseInt(location.hash.slice(1), 10) || 1) - 1));
+  fit();
+  show(cur);
+</script>
+</body>
+</html>

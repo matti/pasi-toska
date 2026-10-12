@@ -1,0 +1,61 @@
+#!/bin/sh
+# hydra-exit entrypoint. Idempotent: keys live in the /etc/wireguard volume
+# and are created only once; the interface and NAT are rebuilt every start.
+#
+#   HYDRA_PEERS    peer pool size, default 8 (growing it adds peers)
+#   HYDRA_SUBNET   first three octets of the tunnel /24, default 10.77.0
+#   HYDRA_MTU      tunnel MTU, default 1200 (fits a 1280 path, e.g. over Tailscale)
+#   HYDRA_WG_USERSPACE=1  force wireguard-go (needs --device /dev/net/tun)
+set -eu
+DIR=/etc/wireguard
+PEERS=${HYDRA_PEERS:-8}
+NET=${HYDRA_SUBNET:-10.77.0}
+MTU=${HYDRA_MTU:-1200}
+log() { echo "hydra-exit: $*" >&2; }
+rm -f /run/hydra-exit-ready
+
+umask 077
+[ -s "$DIR/server.key" ] || wg genkey > "$DIR/server.key"
+i=0
+while [ "$i" -lt "$PEERS" ]; do
+  [ -s "$DIR/peer-$i.key" ] || wg genkey > "$DIR/peer-$i.key"
+  i=$((i + 1))
+done
+printf 'PEERS=%s\nNET=%s\nMTU=%s\n' "$PEERS" "$NET" "$MTU" > "$DIR/pool.env"
+
+{
+  printf '[Interface]\nPrivateKey = %s\nListenPort = 51820\n' "$(cat "$DIR/server.key")"
+  i=0
+  while [ "$i" -lt "$PEERS" ]; do
+    printf '\n[Peer]\nPublicKey = %s\nAllowedIPs = %s.%s/32\n' "$(wg pubkey < "$DIR/peer-$i.key")" "$NET" $((i + 2))
+    i=$((i + 1))
+  done
+} > /run/wg0.conf
+
+ip link del wg0 2>/dev/null || true
+if [ "${HYDRA_WG_USERSPACE:-0}" = 1 ] || ! ip link add wg0 type wireguard 2>/dev/null; then
+  log "using userspace wireguard-go"
+  wireguard-go wg0
+fi
+wg setconf wg0 /run/wg0.conf
+rm -f /run/wg0.conf
+ip -4 address add "$NET.1/24" dev wg0
+ip link set mtu "$MTU" up dev wg0
+
+# NAT out of the default interface. Peers may not reach private ranges
+# behind the exit (home LAN, cloud metadata, the docker host).
+wan=$(ip -4 route show default | awk '{print $5; exit}')
+iptables -t nat -F POSTROUTING
+iptables -F FORWARD
+iptables -t nat -A POSTROUTING -s "$NET.0/24" -o "$wan" -j MASQUERADE
+iptables -A FORWARD -i wg0 -d 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16,100.64.0.0/10 -j DROP
+iptables -A FORWARD -i wg0 -o "$wan" -j ACCEPT
+iptables -A FORWARD -o wg0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+
+[ "$(cat /proc/sys/net/ipv4/ip_forward)" = 1 ] || log "WARNING: ip_forward is off; run with --sysctl net.ipv4.ip_forward=1"
+touch /run/hydra-exit-ready
+log "listening on udp 51820, $PEERS peers in $NET.0/24, NAT via $wan"
+
+trap 'exit 0' TERM INT
+sleep 2147483647 &
+wait

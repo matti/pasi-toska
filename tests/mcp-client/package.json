@@ -1,0 +1,9 @@
+{
+  "name": "hydra-mcp-client",
+  "private": true,
+  "type": "module",
+  "description": "Minimal MCP client for hydra e2e and demos",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1"
+  }
+}

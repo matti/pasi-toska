@@ -1,0 +1,125 @@
+# hydra-panel: UI + proxy for browser pods. Image is imported into k0s containerd (no registry).
+# Namespace `hydra` is created separately (it also holds the exit Secrets), so `kubectl delete -f` is safe.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hydra-panel
+  namespace: hydra
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: hydra-panel
+  namespace: hydra
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    # patch: an exit switch moves the hydra/exit and hydra/peer labels.
+    verbs: [get, list, watch, create, delete, patch]
+  # watch: the panel keeps a live cache of the exit Secrets.
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hydra-panel
+  namespace: hydra
+subjects:
+  - kind: ServiceAccount
+    name: hydra-panel
+    namespace: hydra
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: hydra-panel
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hydra-panel
+  namespace: hydra
+  labels:
+    app: hydra-panel
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: hydra-panel
+  template:
+    metadata:
+      labels:
+        app: hydra-panel
+    spec:
+      serviceAccountName: hydra-panel
+      terminationGracePeriodSeconds: 5
+      volumes:
+        - name: claude
+          secret:
+            secretName: hydra-claude
+            optional: true
+            defaultMode: 0440
+      securityContext:
+        runAsNonRoot: true
+        # distroless nonroot: lets uid 65532 read the 0440 Secret file.
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: panel
+          image: hydra-panel:latest
+          imagePullPolicy: Never
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: HYDRA_MAX_BROWSERS
+              value: "2"
+            - name: HYDRA_BROWSER_IMAGE
+              value: hydra-browser:latest
+            - name: HYDRA_BROWSER_PULL_POLICY
+              value: Never
+            - name: RUST_LOG
+              value: info
+            # Agent: Claude subscription token from `hydra login` (Secret
+            # hydra-claude), re-read on every run; the agent UI is hidden without it.
+            - name: HYDRA_CLAUDE_CREDENTIALS
+              value: /etc/hydra/claude/credentials.json
+          volumeMounts:
+            - name: claude
+              mountPath: /etc/hydra/claude
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hydra-panel
+  namespace: hydra
+spec:
+  type: NodePort
+  selector:
+    app: hydra-panel
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      nodePort: 30080

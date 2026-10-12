@@ -1,0 +1,21 @@
+#!/bin/sh
+# Prints the client configs of the peer pool as JSON:
+#   [{"peer":0,"conf":"<wg0.conf>"},...]
+# usage: hydra-exit-peers <endpoint-host>[:port]   (port defaults to 51820)
+#   HYDRA_DNS  resolvers for the clients, reached through the tunnel (default 1.1.1.1, 9.9.9.9)
+set -eu
+DIR=/etc/wireguard
+endpoint=${1:?usage: hydra-exit-peers <endpoint-host>[:port]}
+case "$endpoint" in *:*) ;; *) endpoint="$endpoint:51820" ;; esac
+[ -f /run/hydra-exit-ready ] || { echo "hydra-exit is not running yet" >&2; exit 1; }
+. "$DIR/pool.env"
+server_pub=$(wg pubkey < "$DIR/server.key")
+dns=${HYDRA_DNS:-1.1.1.1, 9.9.9.9}
+
+i=0
+while [ "$i" -lt "$PEERS" ]; do
+  conf=$(printf '[Interface]\nPrivateKey = %s\nAddress = %s.%s/32\nDNS = %s\nMTU = %s\n\n[Peer]\nPublicKey = %s\nEndpoint = %s\nAllowedIPs = 0.0.0.0/0, ::/0\nPersistentKeepalive = 25\n' \
+    "$(cat "$DIR/peer-$i.key")" "$NET" $((i + 2)) "$dns" "$MTU" "$server_pub" "$endpoint")
+  jq -n --argjson peer "$i" --arg conf "$conf" '{peer: $peer, conf: ($conf + "\n")}'
+  i=$((i + 1))
+done | jq -cs .

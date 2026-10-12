@@ -1,0 +1,148 @@
+<!doctype html>
+<!-- IP page (PASI TOSKA browser; internal name hydra), served by server.mjs at :8080/ip and opened by the panel's
+     IP test. Everything is fetched by this page itself, i.e. through the
+     browser's own egress (tunnel), so it is the outside world's view. -->
+<html lang="fi" translate="no">
+<head>
+<meta charset="utf-8">
+<meta name="google" content="notranslate">
+<title>PASI TOSKA IP</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0b0f14; color: #f4f7fb; overflow: hidden;
+    font-family: "Liberation Sans", "Noto Sans", sans-serif; }
+  main { height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;
+    gap: 1.8vh; text-align: center; }
+  #ip { font-weight: 800; line-height: 1; letter-spacing: -0.02em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  #where { font-size: 9vh; font-weight: 700; display: flex; align-items: center; gap: 0.4em; }
+  #flag { font-size: 1.4em; font-family: "Noto Color Emoji", sans-serif; }
+  #org { font-size: 4.5vh; color: #9aa7b8; }
+  #webrtc { font-size: 7vh; font-weight: 800; }
+  #dns { font-size: 4.5vh; color: #c9d3df; }
+  #fp { display: grid; grid-template-columns: auto auto; gap: 0.4vh 2.5vw; margin-top: 1vh; font-size: 2.5vh;
+    text-align: left; max-width: 94vw; }
+  #fp dt { color: #6f7c8e; } #fp dd { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70vw; }
+  #foot { position: fixed; left: 0; right: 0; bottom: 1.5vh; text-align: center; font-size: 2.4vh; color: #5f6b7a; }
+  .ok { color: #43e5a0; } .bad { color: #ff5c5c; } .muted { color: #9aa7b8; }
+</style>
+</head>
+<body>
+<main>
+  <div id="ip">...</div>
+  <div id="where"><span id="flag"></span><span id="place"></span></div>
+  <div id="org"></div>
+  <div id="webrtc" class="muted">WebRTC: ...</div>
+  <div id="dns" class="muted">DNS: ...</div>
+  <dl id="fp"></dl>
+</main>
+<div id="foot"></div>
+<script>
+const $ = (id) => document.getElementById(id);
+const STUN = ["stun:stun.l.google.com:19302", "stun:stun.cloudflare.com:3478"];
+
+function flag(cc) {
+  return /^[A-Z]{2}$/.test(cc || "") ? String.fromCodePoint(...[...cc].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65)) : "";
+}
+
+// Largest font size at which the IP still fits 94 % of the width (and 34 % of the height).
+function fitIp() {
+  const el = $("ip");
+  let size = Math.floor(window.innerHeight * 0.27);
+  el.style.fontSize = size + "px";
+  while (size > 20 && el.scrollWidth > window.innerWidth * 0.94) el.style.fontSize = (size -= 4) + "px";
+}
+
+async function json(url) {
+  const r = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(8000) });
+  return r.json();
+}
+
+// Public addresses that STUN servers see for this browser (srflx candidates).
+function stunAddresses() {
+  return new Promise((resolve) => {
+    const found = new Set();
+    const pc = new RTCPeerConnection({ iceServers: [{ urls: STUN }] });
+    const done = () => { pc.close(); resolve([...found]); };
+    pc.onicecandidate = (e) => {
+      if (!e.candidate) return done();
+      const m = e.candidate.candidate.match(/ ([0-9a-f.:]+) \d+ typ srflx/i);
+      if (m) found.add(m[1]);
+    };
+    pc.createDataChannel("hydra");
+    pc.createOffer().then((o) => pc.setLocalDescription(o));
+    setTimeout(done, 6000);
+  });
+}
+
+async function refresh() {
+  let egress = null;
+  try {
+    egress = await json("https://ipinfo.io/json");
+    $("ip").textContent = egress.ip;
+    $("flag").textContent = flag(egress.country);
+    // The exit's display label (e.g. "Kulloo, Finland") beats ipinfo's city guess.
+    const status = await json("/status").catch(() => ({}));
+    $("place").textContent = status.exit_label || [egress.city, egress.country].filter(Boolean).join(", ");
+    $("org").textContent = egress.org || "";
+  } catch {
+    $("ip").textContent = "ei yhteyttä";
+    $("flag").textContent = $("place").textContent = $("org").textContent = "";
+  }
+  fitIp();
+  fingerprint(egress);
+  const [rtc, dns] = await Promise.allSettled([stunAddresses(), json("http://edns.ip-api.com/json")]);
+  const ips = rtc.status === "fulfilled" ? rtc.value : [];
+  const w = $("webrtc");
+  if (!ips.length) {
+    w.textContent = "WebRTC: ei STUN-vastausta";
+    w.className = "muted";
+  } else {
+    w.textContent = "WebRTC: " + ips.join(", ");
+    w.className = egress && ips.every((ip) => ip === egress.ip) ? "ok" : "bad";
+  }
+  const d = dns.status === "fulfilled" && dns.value.dns;
+  $("dns").textContent = d ? `DNS: ${d.ip} (${d.geo})` : "DNS: ei tietoa";
+  $("foot").textContent = `päivitetty ${new Date().toLocaleTimeString("fi-FI")}, uudelleen 30 s välein`;
+}
+
+// What a site sees besides the IP, compared with the exit's location.
+function webgl() {
+  try {
+    const gl = document.createElement("canvas").getContext("webgl");
+    const ext = gl.getExtension("WEBGL_debug_renderer_info");
+    return ext ? `${gl.getParameter(ext.UNMASKED_VENDOR_WEBGL)} / ${gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)}` : gl.getParameter(gl.VENDOR);
+  } catch {
+    return "ei WebGL:ää";
+  }
+}
+
+function fingerprint(egress) {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const langs = navigator.languages.join(", ");
+  const cc = egress && egress.country;
+  const rows = [
+    ["webdriver", String(navigator.webdriver), navigator.webdriver ? "bad" : "ok"],
+    ["Aikavyöhyke", egress ? `${tz} (exit ${egress.timezone})` : tz, egress ? (tz === egress.timezone ? "ok" : "bad") : ""],
+    ["Kielet", cc ? `${langs} (exit ${cc})` : langs, cc ? (navigator.languages.some((l) => l.toUpperCase().endsWith("-" + cc)) ? "ok" : "bad") : ""],
+    ["Alusta", `${navigator.platform}${navigator.userAgentData ? " / " + navigator.userAgentData.platform : ""}`, ""],
+    ["WebGL", webgl(), ""],
+    ["UA", navigator.userAgent, ""],
+  ];
+  $("fp").replaceChildren(
+    ...rows.flatMap(([k, v, cls]) => {
+      const dt = document.createElement("dt");
+      const dd = document.createElement("dd");
+      dt.textContent = k;
+      dd.textContent = v;
+      dd.title = v;
+      if (cls) dd.className = cls;
+      return [dt, dd];
+    }),
+  );
+}
+
+window.addEventListener("resize", fitIp);
+refresh();
+setInterval(refresh, 30000);
+</script>
+</body>
+</html>
