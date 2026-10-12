@@ -2,6 +2,8 @@
 
 Tila 2026-10-11. Komennot ajetaan Macilta repon juuresta.
 
+**Purettu 2026-10-12:** n100-1:ltä poistettu k0s, Kata, pve-forward-guard, kube-routerin ja kube-proxyn iptables-säännöt ja ipsetit (varmuuskopio `/root/hydra-teardown-backup/`), `bridge-nf-call-iptables=0`. Vierasverkon testit (VM 103, CT 102, OPNsense, internet, purkki) OK purun jälkeen. purkilta poistettu `hydra-exit`-kontti, volume ja image. Macilta poistettu launchd `dev.hydra.login`. Alla oleva kuvaa purettua tilaa, ja sen avulla kaiken voi pystyttää uudelleen.
+
 ## n100-1 (Proxmox VE 8, Debian 12, kernel 6.8.12-9-pve)
 
 - k0s **v1.36.4+k0s.1** (Kubernetes v1.36.4, containerd 2.3.5), yksisolmuinen: `k0s install controller --single --config /etc/k0s/k0s.yaml --kubelet-extra-args=--node-ip=192.168.9.101`. Palvelu `k0scontroller` (systemd, enabled).

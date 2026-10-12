@@ -14,7 +14,7 @@
 - Never create cloud servers; touch remote hosts only when the user asked.
 - Keep docs in `docs/` in sync with behavior; this file stays a terse list.
 - n100-1 runs browser pods as Kata microVMs (RuntimeClass `kata`, Cloud Hypervisor; guest has no WireGuard module, wireguard-go is used). Setup, numbers, rollback: `docs/infra.md`.
-- Infra (k0s on n100-1, kubeconfig `.secrets/kubeconfig`, image import, purkki exit host): `docs/infra.md`.
+- Infra torn down 2026-10-12 (n100-1, purkki). Infra (k0s on n100-1, kubeconfig `.secrets/kubeconfig`, image import, purkki exit host): `docs/infra.md`.
 - Panel (UI, proxy, agent, deploy `panel/deploy/panel.yaml` + `panel/ship.sh`): `docs/panel.md`.
 - AWS exit `capetown` (af-south-1) purettu 2026-10-12, tili suljettu: `docs/aws-exit.md`.
 - Team presentation (Finnish HTML deck + PDF): `presentation/index.html`, `presentation/pasi-toska.pdf`.
