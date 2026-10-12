@@ -109,7 +109,7 @@
 
 <!-- 3 -->
 <section class="slide">
-  <h2>Live: kaksi selainta, kaksi maata, sama tehtävä<small>Panel n100-1:llä, tehtävä B ajossa rinnakkain Cape Townin ja Kulloon kautta</small></h2>
+  <h2>Live: kaksi selainta, kaksi maata, sama tehtävä<small>Panel n100-1:llä, tehtävä B ajossa rinnakkain Cape Townin ja Kulloon kautta (Cape Town oli testi-exit, purettu 12.10.)</small></h2>
   <div class="fit" style="flex:1"><img class="shot" src="img/pres-agent-mid.jpg" alt="Panel: agentti työssä kahdessa selaimessa"></div>
 </section>
 
@@ -146,8 +146,8 @@
     <text class="mono" x="660" y="240" style="fill:#43e5a0">wg0 + killswitch</text>
     <rect class="bx" rx="14" x="962" y="20" width="174" height="96" style="opacity:.6"/><text class="s" x="980" y="58">pod per selain,</text><text class="s" x="980" y="82">kukin omaan exitiin</text>
     <path class="ln" d="M570 120H638" marker-end="url(#ar)"/>
-    <rect class="bx" rx="14" x="300" y="370" width="400" height="140"/><text class="t" x="320" y="406">Cape Town, South Africa</text>
-    <text class="s" x="320" y="432">hydra-exit, AWS af-south-1, t4g.micro</text><text class="mono" x="320" y="460">julkinen UDP 51820</text>
+    <rect class="bx" rx="14" x="300" y="370" width="400" height="140"/><text class="t" x="320" y="406">Cape Town (testi, purettu)</text>
+    <text class="s" x="320" y="432">hydra-exit, AWS af-south-1, t4g.micro, 12.10.</text><text class="mono" x="320" y="460">julkinen UDP 51820</text>
     <text class="mono" x="320" y="486" style="fill:#43e5a0">15.240.66.186</text>
     <rect class="bx" rx="14" x="760" y="370" width="376" height="140"/><text class="t" x="780" y="406">Kulloo, Finland</text>
     <text class="s" x="780" y="432">hydra-exit, koti-/yritysliittymä NATin takana</text><text class="mono" x="780" y="460">Tailscale-endpoint, MTU 1200</text>
@@ -236,7 +236,7 @@
       <li><code>hydra exit add</code> (Rust CLI): rakentaa imagen etäkoneen arkkitehtuurille, kopioi vain jos image-id muuttui, käynnistää, kirjoittaa peerit kube-Secreteiksi (server-side apply).</li>
       <li>Näyttönimi annotaationa: <code>--label "Kulloo, Finland"</code>, korvaa UI:ssa ipinfo.io:n kaupunkiarvauksen.</li>
       <li><b>Kulloo:</b> kone koti-/yritysliittymässä (Telia), NATin takana, Tailscalen kautta.</li>
-      <li><b>Cape Town:</b> AWS af-south-1, t4g.micro (arm64), noin 12,4 $/kk hinnaston mukaan + liikenne.</li>
+      <li><b>Cape Town</b> (testattu ja purettu 12.10.): AWS af-south-1, t4g.micro (arm64), noin 12,4 $/kk hinnaston mukaan + liikenne.</li>
     </ul>
     <pre>hydra exit add purkki root@purkki \
   --endpoint 100.111.221.2 \
