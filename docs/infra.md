@@ -66,6 +66,49 @@ Tarkistus ennen ja jälkeen asennuksen (sama tulos molemmilla kerroilla):
 - NodePort 30080 vastaa Macilta `http://100.121.196.77:30080` ja `http://n100-1:30080`. Huom: heti Servicen luonnin jälkeen kube-proxy voi olla vielä ohjelmoimatta sääntöjä (ensimmäinen yritys: connection refused), joten pollaa.
 - NodePortit kuuntelevat kaikilla hostin osoitteilla (myös LAN 192.168.9.101).
 
+### Kata Containers: jokainen selain omassa microVM:ssä (2026-10-12)
+
+Selainpodit ajetaan RuntimeClassilla `kata`: Kata Containers 4.2.0 (runtime-rs) + Cloud Hypervisor v51.1, vieraskernel 6.18.35. Selaimen murto päätyy VM:n kerneliin, ei hostin (podissa `uname -r` = 6.18.35, hostilla 6.8.12-9-pve).
+
+Miksi ei Firecracker: Kata 4.2.0:n static-julkaisussa ei ole firecracker- eikä jailer-binääriä (vain konfiguraatio), ja Firecrackerilta puuttuu virtio-fs, joten se vaatisi devmapper-snapshotterin ohutallasta (VG `pve`:ssä 14,75 Gt vapaana, mutta se on Proxmoxin varatila) ja Secret- ja emptyDir-tiedostojen jakaminen ilman virtio-fs:ää on hankalaa. Cloud Hypervisor tulee julkaisun mukana, käyttää virtio-fs:ää eikä tarvitse lisätallennustilaa.
+
+Asennettu:
+
+- `/opt/kata` (350 Mt, vain tarvittavat tiedostot julkaisun 1 Gt:n paketista: runtime-rs-shim, cloud-hypervisor, virtiofsd, kernel, Ubuntu-rootfs-image).
+- `/etc/kata-containers/hydra-clh.toml` = julkaisun `configuration-clh-runtime-rs.toml`, muutokset: `reclaim_guest_freed_memory = true`, `mem_agent_enable = true`, `memcg_period_secs = 60`, `compact_period_secs = 120`.
+- `/etc/k0s/containerd.d/kata.toml`: CRI-runtime `kata` (k0s:n drop-in, k0s käynnistää containerdin uudelleen itse, käynnissä olevat podit eivät kaadu).
+- RuntimeClass `kata` (`panel/deploy/runtimeclass-kata.yaml`), panelissa `HYDRA_RUNTIME_CLASS=kata`, `HYDRA_BROWSER_MEMORY_LIMIT=1280Mi`, `HYDRA_BROWSER_CPU_LIMIT=2` (VM:n koko = limitit + pieni ylimääräinen, 3 vCPU:ta).
+- Varmuuskopiot: `/root/hydra-kata-backup/` (containerd.toml ja hydra-clh.toml-versiot).
+- Levytilaa vapautettiin: `apt-get clean` ja `journalctl --vacuum-size=2G` (noin 2,3 Gt). Imagen tuonti nosti levyn hetkeksi kubeletin rajan yli (disk-pressure-taint, podit eivät käynnistyneet noin 2 min).
+
+Vieraan erot, jotka image hoitaa: vieraskernelissä ei ole WireGuard-moduulia, joten tunneli ajetaan wireguard-go:lla (TUN-laite luodaan `mknod`illa, killswitch ennallaan, iptables/nf_tables ja ip6tables ovat kernelissä); x11vnc pyöri 100 % CPU:lla vieraan `nofile`-rajalla 1073741824, joten sille asetetaan `ulimit -n 4096`. `kubectl port-forward` ei toimi Kata-podeihin, panelin proxy (pod-IP) toimii.
+
+Mitattu (kaksi selainta, Kulloo ja suora):
+
+| | runc | Kata (clh) |
+|---|---|---|
+| podin luonnista Chromium valmiiksi | 2,2 s | 6,7 ja 7,6 s |
+| panelissa valmis (sis. egress-IP) | | 11 ja 15 s |
+| muisti hostilla per selain (cgroup, sivu ladattu) | 473 Mt | 1246 ja 1250 Mt (VM 1280 Mi täyttyy vieraan välimuistista) |
+| CPU levossa per selain | 0,1 ... 0,3 ydintä (kubectl top) | 0,13 ... 0,23 ydintä (top, live-näkymä auki) |
+| exitin vaihto (control-portti) | 0,15 s | 0,6 ... 0,9 s |
+
+Kaksi Kata-selainta: hostilla jää noin 2,8 Gt käytettävissä. Killswitch testattu VM:ssä: purkin hydra-exit pysäytetty, DNS, IP-osoite ja eth0-ohitus aikakatkaistiin, palautus 10 s ilman podin uudelleenkäynnistystä.
+
+#### Kata pois (rollback)
+
+```bash
+export KUBECONFIG=.secrets/kubeconfig
+# 1. panel takaisin runc:iin ja vanhat limitit
+#    (poista HYDRA_RUNTIME_CLASS, HYDRA_BROWSER_MEMORY_LIMIT, HYDRA_BROWSER_CPU_LIMIT panel/deploy/panel.yaml:sta)
+kubectl apply -f panel/deploy/panel.yaml
+# 2. sulje selaimet panelista (ne ovat Kata-podeja), sitten
+kubectl delete runtimeclass kata
+ssh root@n100-1 'rm /etc/k0s/containerd.d/kata.toml'   # k0s lataa containerdin uudelleen
+ssh root@n100-1 'rm -rf /opt/kata /etc/kata-containers'
+# varmuuskopiot: /root/hydra-kata-backup/
+```
+
 ### k0s:n poisto
 
 ```

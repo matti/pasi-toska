@@ -82,6 +82,14 @@ spec:
               value: hydra-browser:latest
             - name: HYDRA_BROWSER_PULL_POLICY
               value: Never
+            # Every browser in its own Kata microVM (Cloud Hypervisor), see
+            # runtimeclass-kata.yaml. VM size = limits (+ small overhead).
+            - name: HYDRA_RUNTIME_CLASS
+              value: kata
+            - name: HYDRA_BROWSER_MEMORY_LIMIT
+              value: 1280Mi
+            - name: HYDRA_BROWSER_CPU_LIMIT
+              value: "2"
             - name: RUST_LOG
               value: info
             # Agent: Claude subscription token from `hydra login` (Secret

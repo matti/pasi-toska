@@ -9,6 +9,10 @@ pub struct Config {
     pub max_browsers: usize,
     pub image: String,
     pub pull_policy: String,
+    /// RuntimeClass for browser pods (e.g. "kata" for microVMs); unset = cluster default.
+    pub runtime_class: Option<String>,
+    pub memory_limit: String,
+    pub cpu_limit: Option<String>,
     pub direct_tz: String,
     pub direct_lang: String,
     /// Overrides the looked-up public IP of the node.
@@ -38,6 +42,9 @@ impl Config {
             max_browsers: or("HYDRA_MAX_BROWSERS", "2").parse()?,
             image: or("HYDRA_BROWSER_IMAGE", "hydra-browser:latest"),
             pull_policy: or("HYDRA_BROWSER_PULL_POLICY", "IfNotPresent"),
+            runtime_class: var("HYDRA_RUNTIME_CLASS"),
+            memory_limit: or("HYDRA_BROWSER_MEMORY_LIMIT", "2Gi"),
+            cpu_limit: var("HYDRA_BROWSER_CPU_LIMIT"),
             direct_tz: or("HYDRA_DIRECT_TZ", "Europe/Helsinki"),
             direct_lang: or("HYDRA_DIRECT_LANG", "fi_FI.UTF-8"),
             node_ip: var("HYDRA_NODE_IP"),

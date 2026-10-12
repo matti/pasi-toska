@@ -1,6 +1,6 @@
 # Agentti: Claude-tilaus selainten ohjaimena
 
-Panelin agentti ajaa saman tehtävän rinnakkain jokaisessa käynnissä olevassa selaimessa (esim. purkki ja capetown) ja näyttää jokaisen kortin alla askeleet ja vastauksen. Ihminen näkee työn live-näkymästä.
+Panelin agentti ajaa saman tehtävän rinnakkain jokaisessa käynnissä olevassa selaimessa (esim. purkki ja toinen exit) ja näyttää jokaisen kortin alla askeleet ja vastauksen. Ihminen näkee työn live-näkymästä.
 
 ## Tunnus: `hydra login`
 

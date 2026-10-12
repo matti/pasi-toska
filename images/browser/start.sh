@@ -51,7 +51,9 @@ wait_for() { # <what> <command...>: poll every 100 ms, up to 30 s
 
 as_hydra Xvfb :99 -screen 0 "${screen}x24" -nolisten tcp -ac &
 wait_for Xvfb test -S /tmp/.X11-unix/X99
-as_hydra x11vnc -display :99 -forever -shared -nopw -localhost -rfbport 5900 -quiet >/dev/null 2>&1 &
+# x11vnc walks every possible fd: with a huge nofile limit (Kata guest,
+# some docker hosts) it spins at 100 % CPU. 4096 is plenty for VNC.
+(ulimit -n 4096; as_hydra x11vnc -display :99 -forever -shared -nopw -localhost -rfbport 5900 -quiet) >/dev/null 2>&1 &
 
 # Headful Chromium. --test-type hides the --no-sandbox infobar (the sandbox
 # needs privileges a container does not have; the user is unprivileged and

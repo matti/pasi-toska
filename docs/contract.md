@@ -58,7 +58,8 @@ selain (ihminen) ──> hydra-panel (axum, k0s Deployment, NodePort 30080)
 - Nimi `hydra-b-<id>` (id = 6 merkkiä [a-z0-9]), labelit `app=hydra-browser`, `hydra/id`, `hydra/exit`, `hydra/peer`.
 - Secret mountattuna `/etc/hydra/wg` (vain kun exit != direct), `capabilities.add: [NET_ADMIN]` vain silloin, ja emptyDir `/var/lib/hydra/net` (vaihdetun exitin wg0.conf säilyy kontin uudelleenkäynnistyksen yli).
 - Exitin vaihto: panel siirtää labelit `hydra/exit` ja `hydra/peer` uuteen peeriin (patch), sitten POST pod:8081/exit; epäonnistuessa labelit palautetaan. Vain tunneliselaimet ja vain exitistä toiseen (ei suoraan yhteyteen). Käynnissä olevan Chromiumin `TZ`/`LANG` eivät vaihdu.
-- Resurssit: requests cpu 500m / mem 768Mi, limits mem 2Gi. Max samanaikaiset selaimet konfiguroitava (oletus 2, n100-1:llä on vähän muistia).
+- Resurssit: requests cpu 500m / mem 768Mi, limits mem 2Gi (`HYDRA_BROWSER_MEMORY_LIMIT`, CPU-limit `HYDRA_BROWSER_CPU_LIMIT` valinnainen).
+- `runtimeClassName` valinnainen (`HYDRA_RUNTIME_CLASS`), n100-1:llä `kata`: jokainen selain omassa microVM:ssä (Kata + Cloud Hypervisor). Image ei muutu; docker run toimii kuten ennen. Max samanaikaiset selaimet konfiguroitava (oletus 2, n100-1:llä on vähän muistia).
 
 ## Agentin näkökulma
 

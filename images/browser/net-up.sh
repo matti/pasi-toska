@@ -75,8 +75,18 @@ up() {
 
   # 3. Tunnel: kernel WireGuard, else userspace wireguard-go (needs /dev/net/tun).
   if [ "${HYDRA_WG_USERSPACE:-0}" = 1 ] || ! ip link add wg0 type wireguard 2>/dev/null; then
+    # No WireGuard module (e.g. the Kata microVM guest kernel): userspace.
+    # The TUN node is not in every runtime's /dev; the kernel has the driver.
+    if [ ! -c /dev/net/tun ]; then
+      mkdir -p /dev/net
+      mknod -m 600 /dev/net/tun c 10 200
+    fi
     log "using userspace wireguard-go"
-    WG_PROCESS_FOREGROUND=0 wireguard-go wg0
+    # Foreground in the background: its own daemon mode re-forks forever in
+    # some environments. If it dies, wg0 disappears and the killswitch drops all.
+    wireguard-go -f wg0 </dev/null >/dev/null 2>&1 &
+    for _ in $(seq 100); do [ -S /var/run/wireguard/wg0.sock ] && break; sleep 0.05; done
+    [ -S /var/run/wireguard/wg0.sock ] || { log "wireguard-go did not start"; exit 1; }
   fi
   grep -Ev '^[[:space:]]*(Address|DNS|MTU|Endpoint)[[:space:]]*=' "$1" \
     | sed "/^\[Peer\]/a Endpoint = $c_ip:$c_port" > /run/wg0.conf

@@ -29,6 +29,11 @@ pub struct LaunchSpec {
     pub route: Route,
     pub tz: String,
     pub lang: String,
+    /// Optional RuntimeClass, e.g. "kata": every browser in its own microVM.
+    pub runtime_class: Option<String>,
+    pub memory_limit: String,
+    /// With Kata the VM gets limit + overhead vCPUs; without a limit only one.
+    pub cpu_limit: Option<String>,
 }
 
 pub fn pod_name(id: &str) -> String {
@@ -105,13 +110,20 @@ pub fn build(spec: &LaunchSpec) -> Pod {
                 security_context: security,
                 resources: Some(ResourceRequirements {
                     requests: Some(BTreeMap::from([("cpu".into(), q("500m")), ("memory".into(), q("768Mi"))])),
-                    limits: Some(BTreeMap::from([("memory".into(), q("2Gi"))])),
+                    limits: Some({
+                        let mut l = BTreeMap::from([("memory".into(), q(&spec.memory_limit))]);
+                        if let Some(cpu) = &spec.cpu_limit {
+                            l.insert("cpu".into(), q(cpu));
+                        }
+                        l
+                    }),
                     ..Default::default()
                 }),
                 ..Default::default()
             }],
             volumes: Some(volumes),
             // The browser never talks to the kube API.
+            runtime_class_name: spec.runtime_class.clone(),
             automount_service_account_token: Some(false),
             enable_service_links: Some(false),
             termination_grace_period_seconds: Some(2),
@@ -133,7 +145,25 @@ mod tests {
             route,
             tz: "Europe/Helsinki".into(),
             lang: "fi_FI.UTF-8".into(),
+            runtime_class: None,
+            memory_limit: "2Gi".into(),
+            cpu_limit: None,
         }
+    }
+
+    #[test]
+    fn runtime_class_and_limits_come_from_config() {
+        let mut s = spec(Route::Direct);
+        assert!(build(&s).spec.unwrap().runtime_class_name.is_none());
+        s.runtime_class = Some("kata".into());
+        s.memory_limit = "1536Mi".into();
+        s.cpu_limit = Some("2".into());
+        let p = build(&s);
+        let ps = p.spec.as_ref().unwrap();
+        assert_eq!(ps.runtime_class_name.as_deref(), Some("kata"));
+        let limits = ps.containers[0].resources.as_ref().unwrap().limits.as_ref().unwrap();
+        assert_eq!(limits["memory"].0, "1536Mi");
+        assert_eq!(limits["cpu"].0, "2");
     }
 
     fn container(p: &Pod) -> &Container {

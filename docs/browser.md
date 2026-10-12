@@ -24,6 +24,10 @@ CDP kuuntelee vain `127.0.0.1:9222`.
 
 Evästebannerit: imagessa on "I still don't care about cookies" -laajennus (ylläpidetty avoimen lähdekoodin haara, github.com/OhMyGuus/I-Still-Dont-Care-About-Cookies), kiinnitetty julkaisuun 1.1.9 ja SHA-256-tarkistettu, ladattu `--load-extension`illa ja `--disable-extensions-except`illa (Debianin Chromium tarvitsee lisäksi `--disable-features=DisableLoadExtensionCommandLineSwitch`). Laajennuksen hakemisto `/opt/isdcac` kuuluu käyttäjälle `hydra`, koska Chromium kirjoittaa sinne declarativeNetRequest-sääntöjen indeksin; ilman kirjoitusoikeutta lataus kaatuu modaaliseen virheeseen eikä selain käynnisty. Tarkistettu Playwright MCP:n kautta: hs.fi, yle.fi, iltalehti.fi, ilmatieteenlaitos.fi ja kaalimato.com ilman evästebanneria.
 
+## microVM (Kata Containers)
+
+Sama image toimii sellaisenaan Kata-podina (n100-1:llä jokainen selain on oma Cloud Hypervisor -VM). Jos kernelissä ei ole WireGuardia (Katan vieraskernel), `net-up.sh` luo TUN-laitteen ja käyttää wireguard-go:ta; killswitch ja vaihto toimivat samoin. x11vnc ajetaan `ulimit -n 4096`:llä, koska valtava `nofile`-raja saa sen pyörimään 100 % CPU:lla. Mittaukset ja asennus: [infra.md](infra.md).
+
 ## Portit ja ympäristö
 
 | Portti | Mitä |

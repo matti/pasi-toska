@@ -57,6 +57,8 @@ Claude ohjaa selaimia niiden MCP:n kautta käyttäjän Claude-tilauksella (ei AP
 | `HYDRA_NAMESPACE` | `hydra` |
 | `HYDRA_MAX_BROWSERS` | `2` |
 | `HYDRA_BROWSER_IMAGE` | `hydra-browser:latest` |
+| `HYDRA_RUNTIME_CLASS` | ei asetettu (klusterin oletus); n100-1:llä `kata` (microVM) |
+| `HYDRA_BROWSER_MEMORY_LIMIT`, `HYDRA_BROWSER_CPU_LIMIT` | `2Gi`, ei CPU-limittiä; n100-1:llä `1280Mi`, `2` (Kata-VM:n koko) |
 | `HYDRA_BROWSER_PULL_POLICY` | `IfNotPresent` (manifestissa `Never`) |
 | `HYDRA_DIRECT_TZ`, `HYDRA_DIRECT_LANG` | `Europe/Helsinki`, `fi_FI.UTF-8` (suorat selaimet ja exitit ilman annotaatiota) |
 | `HYDRA_NODE_IP` | haetaan ipinfo.io:sta |

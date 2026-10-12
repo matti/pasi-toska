@@ -131,7 +131,17 @@ impl Cluster {
         };
         let taken: HashSet<&str> = pods.iter().filter_map(model::pod_id).collect();
         let id = id::generate(|c| taken.contains(c));
-        let pod = podspec::build(&LaunchSpec { id: id.clone(), image: cfg.image.clone(), pull_policy: cfg.pull_policy.clone(), route, tz, lang });
+        let pod = podspec::build(&LaunchSpec {
+            id: id.clone(),
+            image: cfg.image.clone(),
+            pull_policy: cfg.pull_policy.clone(),
+            route,
+            tz,
+            lang,
+            runtime_class: cfg.runtime_class.clone(),
+            memory_limit: cfg.memory_limit.clone(),
+            cpu_limit: cfg.cpu_limit.clone(),
+        });
         self.pods_api.create(&PostParams::default(), &pod).await?;
         tracing::info!(id, exit, "launched browser");
         Ok(id)

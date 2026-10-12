@@ -205,6 +205,27 @@
   </div>
 </section>
 
+<!-- 6b -->
+<section class="slide">
+  <h2>Eristys: jokainen selain omassa microVM:ssä<small>Kata Containers 4.2.0 + Cloud Hypervisor, k0s RuntimeClass <code>kata</code></small></h2>
+  <div class="cols">
+    <ul>
+      <li>Selaimen murto päätyy VM:n kerneliin (6.18.35), ei hostin (6.8 pve).</li>
+      <li>Sama image, ei muutoksia rajapintoihin: <code>docker run</code> toimii kuten ennen, kubessa vain <code>runtimeClassName</code>.</li>
+      <li>Vieraskernelissä ei WireGuardia: wireguard-go, killswitch ennallaan ja testattu VM:ssä.</li>
+      <li>Firecracker jäi pois: ei mukana Katan julkaisussa, ei virtio-fs:ää, vaatisi devmapper-altaan täydelle levylle.</li>
+    </ul>
+    <table>
+      <tr><th>Mitattu, N100</th><th>runc</th><th>Kata</th></tr>
+      <tr><td>pod luotu, Chromium valmis</td><td>2,2 s</td><td>6,7 ... 7,6 s</td></tr>
+      <tr><td>muisti per selain</td><td>473 Mt</td><td>~1,25 Gt</td></tr>
+      <tr><td>CPU levossa per selain</td><td>0,1 ... 0,3 ydintä</td><td>0,13 ... 0,23 ydintä</td></tr>
+      <tr><td>exitin vaihto</td><td>0,15 s</td><td>0,6 ... 0,9 s</td></tr>
+      <tr><td>tunneli alas</td><td colspan="2" class="g">ei ulosmenoa, palautus 10 s</td></tr>
+    </table>
+  </div>
+</section>
+
 <!-- 7 -->
 <section class="slide">
   <h2>Exitit: yksi kontti millä tahansa koneella</h2>

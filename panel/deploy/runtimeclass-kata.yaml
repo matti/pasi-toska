@@ -1,0 +1,8 @@
+# Kata Containers (runtime-rs + Cloud Hypervisor) on n100-1: every browser pod
+# in its own microVM. Handler "kata" comes from /etc/k0s/containerd.d/kata.toml.
+# The panel uses it when HYDRA_RUNTIME_CLASS=kata. See docs/infra.md.
+apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata:
+  name: kata
+handler: kata

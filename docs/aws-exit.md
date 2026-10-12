@@ -1,4 +1,14 @@
-# AWS-exit Kapkaupungissa (kertakäyttöinen, 2026-10-12)
+# AWS-exit Kapkaupungissa (purettu 2026-10-12)
+
+**Purettu 2026-10-12:** instanssi terminoitu, security group ja avainpari poistettu,
+kube Secretit `hydra-exit-capetown-*` ja `.secrets/exits/capetown/` poistettu,
+tili 012631426689 suljettu (tila `SUSPENDED`, AWS poistaa 90 päivän päästä),
+OU poistettu ja profiili poistettu `~/.aws/config`ista. Alla oleva on historiaa.
+
+Huom: opt-in-alueessa `af-south-1` management-tilin avaimilla tehty
+AssumeRole epäonnistuu (`InvalidClientTokenId`), koska STS-kutsu menee
+alueelliseen endpointiin. Tee AssumeRole `--region eu-north-1`:llä ja käytä
+saatuja väliaikaisia avaimia `af-south-1`:ssä.
 
 Demoexit `capetown` AWS:n Kapkaupungin alueessa. Kaikki on kertakäyttöistä ja
 poistetaan myöhemmin. Muihin donutlab-tileihin tai OU:ihin ei koskettu.
